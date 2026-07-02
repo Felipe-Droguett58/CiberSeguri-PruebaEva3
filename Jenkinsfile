@@ -4,6 +4,8 @@ pipeline {
     environment {
         PYTHON_VERSION = '3.9'
         DB_PATH = 'database.db'
+        ZAP_PORT = '8080'
+        TARGET_URL = 'http://localhost:5000
     }
     
     stages {
@@ -61,6 +63,21 @@ pipeline {
                 '''
             }
         }
+
+        stage('OWASP ZAP Scan') {
+            steps {
+                echo 'Ejecutando OWASP ZAP scan...'
+                sh '''
+                    # Instalar OWASP ZAP si no está disponible
+                    apt-get install -y owasp-zap || brew install owasp-zap
+                    
+                    # Iniciar ZAP en modo headless
+                    zap-full-scan.py -t $TARGET_URL -r zap-report.html
+                '''
+            }
+        }
+
+        
     }
     
     post {

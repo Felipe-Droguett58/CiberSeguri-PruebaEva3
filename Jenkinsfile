@@ -7,7 +7,7 @@ pipeline {
         ZAP_PORT = '8080'
         TARGET_URL = 'http://localhost:5000'  // Corregido: comilla faltante
         // Definir el ID de la credencial como variable para mejor mantenimiento
-        GITHUB_CREDENTIALS_ID = 'github-token'  // Cambia esto por el ID que usaste en Jenkins
+        GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'  // Cambia esto por el ID que usaste en Jenkins
     }
     
     stages {
@@ -19,7 +19,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/tu-usuario/tu-repositorio.git',  // Cambia por tu URL
+                        url: 'https://github.com/Felipe-Droguett58/CiberSeguri-PruebaEva3.git',  // Cambia por tu URL
                         credentialsId: env.GITHUB_CREDENTIALS_ID
                     ]]
                 ])

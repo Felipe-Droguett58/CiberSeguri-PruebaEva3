@@ -1,15 +1,14 @@
 pipeline {
     agent any
-
+    
     environment {
         PYTHON_VERSION = '3.9'
         DB_PATH = 'database.db'
         ZAP_PORT = '8080'
-        APP_PORT = '5000'
         TARGET_URL = 'http://localhost:5000'
         GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
@@ -24,22 +23,22 @@ pipeline {
                 ])
             }
         }
-
+        
         stage('Setup Environment') {
             steps {
                 echo 'Configurando entorno Python...'
                 bat '''
                     python -m pip install --upgrade pip
-
+                    
                     if exist requirements.txt (
                         pip install -r requirements.txt
                     ) else (
                         echo requirements.txt no encontrado, instalando dependencias básicas...
                         pip install flask
                     )
-
+                    
                     echo Configurando base de datos...
-
+                    
                     if exist database.db (
                         echo Base de datos encontrada, verificando estructura...
                         python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT name FROM sqlite_master WHERE type=\\'table\\' AND name=\\'users\\''); exit(0 if c.fetchone() else 1)" 2>nul
@@ -51,25 +50,25 @@ pipeline {
                             del database.db
                         )
                     )
-
+                    
                     echo Creando nueva base de datos...
                     python create_db.py
-
+                    
                     if %errorlevel% neq 0 (
                         echo ❌ Error al crear la base de datos
                         exit 1
                     )
-
+                    
                     :db_ok
                     echo ✅ Base de datos lista
-
+                    
                     echo.
                     echo === USUARIOS EN LA BASE DE DATOS ===
                     python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; conn.close()"
                 '''
             }
         }
-
+        
         stage('Build') {
             steps {
                 echo 'Construyendo aplicación...'
@@ -84,13 +83,13 @@ pipeline {
                 '''
             }
         }
-
+        
         stage('Test') {
             steps {
                 echo 'Ejecutando pruebas unitarias...'
                 bat '''
                     pip install pytest
-
+                    
                     if exist tests (
                         pytest tests/ -v --junitxml=test-results.xml
                     ) else (
@@ -105,13 +104,13 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Security Scan') {
             steps {
                 echo 'Ejecutando análisis de seguridad estático...'
                 bat '''
                     pip install bandit safety
-
+                    
                     echo === BANDIT SCAN ===
                     dir *.py /b >nul 2>nul
                     if %errorlevel% equ 0 (
@@ -120,32 +119,32 @@ pipeline {
                         echo No se encontraron archivos Python para escanear
                         echo {} > bandit-report.json
                     )
-
+                    
                     echo === SAFETY SCAN ===
                     safety check || echo ⚠️ Safety encontró problemas en dependencias
                 '''
             }
         }
-
+        
         stage('Deploy') {
             steps {
                 echo 'Desplegando aplicación en background...'
                 bat '''
                     echo === LIBERANDO PUERTO 5000 SI ESTABA OCUPADO ===
-                    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+                    for /F "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
                         echo Matando proceso previo en el puerto 5000, PID %%a
                         taskkill /F /PID %%a 2>nul
                     )
-
+                    
                     echo === INICIANDO APLICACIÓN ===
                     set FLASK_APP=vulnerable_app.py
                     set FLASK_ENV=development
-
+                    
                     if exist vulnerable_app.py (
                         echo Iniciando Flask...
                         start /B python -m flask run --host=0.0.0.0 --port=5000
                         timeout /t 5 /nobreak
-
+                        
                         echo Verificando que la aplicación responda...
                         curl -s -o nul -w "HTTP Status: %%{http_code}" %TARGET_URL% || echo ⚠️ No se pudo conectar a la aplicación
                         echo.
@@ -159,14 +158,11 @@ pipeline {
         }
 
         stage('OWASP ZAP Scan') {
-            options {
-                timeout(time: 10, unit: 'MINUTES')
-            }
             steps {
                 echo 'Ejecutando OWASP ZAP scan...'
                 bat '''
                     echo === VERIFICANDO APLICACIÓN ===
-
+                    
                     where curl >nul 2>nul
                     if %errorlevel% equ 0 (
                         echo Verificando conexión a %TARGET_URL%...
@@ -179,47 +175,30 @@ pipeline {
                         echo ⚠️ curl no disponible, verificando con ping...
                         ping localhost -n 5 >nul
                     )
-
+                    
                     echo === ESCANEO OWASP ZAP ===
-
-                    set ZAP_SCRIPT=
-
-                    REM IMPORTANTE: usamos "if exist ... set VAR=..." en UNA sola
-                    REM linea (sin bloques multilinea "if (...) ( ... )"). Los
-                    REM bloques con parentesis se rompen porque la ruta con
-                    REM Program Files (x86) contiene un parentesis literal que
-                    REM descuadra el conteo de parentesis de cmd.exe cuando
-                    REM aparece dentro de un bloque if(...) multilinea.
-
-                    REM Desde ZAP 2.16+ el proyecto se independizó de OWASP y
-                    REM la carpeta de instalación cambió de "OWASP" a "ZAP".
+                    
+                    REM Buscar ZAP en múltiples ubicaciones (CORREGIDO PARA RUTAS CON ESPACIOS)
+                    set "ZAP_SCRIPT="
+                    
+                    REM ZAP 2.16+ (nueva ubicación)
                     if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat"
                     if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe" set "ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe"
                     if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat"
                     if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe" set "ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe"
-
-                    REM Rutas antiguas (versiones antes del rebranding, por compatibilidad)
-                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
+                    
+                    REM Ubicación antigua (OWASP)
                     if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat"
-                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
                     if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat"
-
-                    if "%ZAP_SCRIPT%"=="" (
-                        set ZAP_FOUND=0
-                    ) else (
-                        set ZAP_FOUND=1
-                    )
-
-                    if %ZAP_FOUND% equ 1 (
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
+                    
+                    if defined ZAP_SCRIPT (
                         echo ✅ ZAP encontrado en: %ZAP_SCRIPT%
                         echo Ejecutando escaneo...
-
-                        echo %ZAP_SCRIPT% | find ".py" >nul
-                        if %errorlevel% equ 0 (
-                            python %ZAP_SCRIPT% -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
-                        ) else (
-                            %ZAP_SCRIPT% -cmd -quickurl %TARGET_URL% -quickprogress -quickout zap-report.html || echo ⚠️ ZAP encontró problemas
-                        )
+                        
+                        REM Ejecutar ZAP con comillas para manejar espacios en la ruta
+                        "%ZAP_SCRIPT%" -cmd -quickurl %TARGET_URL% -quickprogress -quickout zap-report.html || echo ⚠️ ZAP encontró problemas
                         echo ✅ Escaneo ZAP completado
                     ) else (
                         echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...
@@ -242,34 +221,28 @@ pipeline {
             }
         }
     }
-
+    
     post {
         always {
             echo '=== PIPELINE COMPLETADO ==='
             echo 'Generando reportes...'
-
-            archiveArtifacts artifacts: 'bandit-report.json, test-results.xml', fingerprint: true, allowEmptyArchive: true
-
-            // Limpieza SEGURA: solo mata el proceso que quedó escuchando en el
-            // puerto 5000 (el Flask que lanzó este build), identificándolo por
-            // su PID exacto vía netstat. NUNCA se toca java.exe — matarlo a
-            // ciegas mata al propio Jenkins, que corre como proceso Java en
-            // Windows, y eso es lo que causaba los reinicios/cuelgues previos.
-            catchError(buildResult: null, stageResult: null) {
+            
+            archiveArtifacts artifacts: 'bandit-report.json, test-results.xml', fingerprint: true
+            
+            catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                 bat '''
                     echo === LIMPIANDO PROCESOS ===
-                    set KILLED=0
-                    for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
+                    
+                    REM Liberar puerto 5000 si está ocupado
+                    for /F "tokens=5" %%a in ('netstat -aon ^| findstr :5000 ^| findstr LISTENING') do (
                         echo Deteniendo proceso en el puerto 5000, PID %%a
-                        taskkill /F /PID %%a 2>nul && set KILLED=1
+                        taskkill /F /PID %%a 2>nul
                     )
-                    if %KILLED% equ 0 (
-                        echo No había ningún proceso escuchando en el puerto 5000
-                    )
+                    
                     echo ✅ Limpieza completada
                 '''
             }
-
+            
             bat '''
                 echo.
                 echo === ARTEFACTOS GENERADOS ===
@@ -283,7 +256,7 @@ pipeline {
         failure {
             echo '❌ ❌ ❌ PIPELINE FALLÓ ❌ ❌ ❌'
             echo 'Revisa los logs para identificar el error'
-
+            
             bat '''
                 echo.
                 echo === POSIBLES CAUSAS DE ERROR ===

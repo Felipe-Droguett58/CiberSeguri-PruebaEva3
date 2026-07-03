@@ -129,25 +129,35 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Desplegando aplicación en background...'
-                bat '''
-                    echo === INICIANDO APLICACIÓN ===
-                    set FLASK_APP=vulnerable_app.py
-                    set FLASK_ENV=development
+                script {
+                    // Matar cualquier proceso Flask previo
+                    bat 'taskkill /F /IM python.exe 2>nul || echo No hay procesos Python'
                     
-                    if exist vulnerable_app.py (
-                        echo Iniciando Flask...
-                        start /B python -m flask run --host=0.0.0.0 --port=5000
-                        timeout /t 5 /nobreak
+                    // Iniciar Flask en background usando python directamente (sin start /B)
+                    bat '''
+                        echo === INICIANDO APLICACIÓN ===
+                        set FLASK_APP=vulnerable_app.py
+                        set FLASK_ENV=development
                         
-                        echo Verificando que la aplicación responda...
-                        curl -s -o nul -w "HTTP Status: %%{http_code}" %TARGET_URL% || echo ⚠️ No se pudo conectar a la aplicación
-                        echo.
-                        echo ✅ Aplicación desplegada en %TARGET_URL%
-                    ) else (
-                        echo ❌ vulnerable_app.py no encontrado
-                        exit 1
-                    )
-                '''
+                        if exist vulnerable_app.py (
+                            echo Iniciando Flask...
+                            
+                            REM Iniciar Flask en segundo plano usando python
+                            start /MIN python -m flask run --host=0.0.0.0 --port=5000
+                            
+                            REM Esperar a que la aplicación inicie
+                            timeout /t 8 /nobreak
+                            
+                            echo Verificando que la aplicación responda...
+                            curl -s -o nul -w "HTTP Status: %%{http_code}" %TARGET_URL% || echo ⚠️ No se pudo conectar a la aplicación
+                            echo.
+                            echo ✅ Aplicación desplegada en %TARGET_URL%
+                        ) else (
+                            echo ❌ vulnerable_app.py no encontrado
+                            exit 1
+                        )
+                    '''
+                }
             }
         }
 
@@ -172,26 +182,47 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
-                    REM Verificar si ZAP está instalado (con manejo de error)
-                    python -c "import os; exit(0) if os.path.exists('C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py') or os.path.exists('C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py') else exit(1)" 2>nul
+                    REM Buscar ZAP en múltiples ubicaciones
+                    set ZAP_FOUND=0
+                    set ZAP_SCRIPT=
                     
-                    if %errorlevel% equ 0 (
-                        echo ZAP encontrado, ejecutando escaneo...
-                        python -c "import os, subprocess; paths = ['C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py', 'C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py']; found = next((p for p in paths if os.path.exists(p)), None); subprocess.run(['python', found, '-t', 'http://localhost:5000', '-r', 'zap-report.html'], shell=True) if found else None" || echo ⚠️ ZAP encontró problemas
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
+                    )
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat
+                    )
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
+                    )
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat
+                    )
+                    
+                    if %ZAP_FOUND% equ 1 (
+                        echo ✅ ZAP encontrado en: %ZAP_SCRIPT%
+                        echo Ejecutando escaneo...
+                        
+                        REM Verificar si es un script Python o un batch
+                        echo %ZAP_SCRIPT% | find ".py" >nul
+                        if %errorlevel% equ 0 (
+                            python %ZAP_SCRIPT% -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
+                        ) else (
+                            %ZAP_SCRIPT% -cmd -quickurl %TARGET_URL% -quickprogress -quickout zap-report.html || echo ⚠️ ZAP encontró problemas
+                        )
                         echo ✅ Escaneo ZAP completado
                     ) else (
-                        echo ⚠️ ZAP no instalado - generando reporte de advertencia...
+                        echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...
                         echo ^<html^> > zap-report.html
                         echo ^<head^>^<title^>ZAP Report^</title^>^</head^> >> zap-report.html
                         echo ^<body^> >> zap-report.html
                         echo ^<h1 style="color: orange;"^>⚠️ OWASP ZAP no instalado^</h1^> >> zap-report.html
                         echo ^<p^>ZAP no se encontró en el sistema.^</p^> >> zap-report.html
                         echo ^<p^>Instala desde: ^<a href="https://www.zaproxy.org/download/"^>https://www.zaproxy.org/download/^</a^>^</p^> >> zap-report.html
-                        echo ^<p^>Rutas buscadas:^</p^> >> zap-report.html
-                        echo ^<ul^> >> zap-report.html
-                        echo ^<li^>C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py^</li^> >> zap-report.html
-                        echo ^<li^>C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py^</li^> >> zap-report.html
-                        echo ^</ul^> >> zap-report.html
                         echo ^</body^> >> zap-report.html
                         echo ^</html^> >> zap-report.html
                         echo ✅ Reporte de advertencia generado

@@ -69,7 +69,7 @@ pipeline {
                     :db_ok
                     echo ✅ Base de datos lista
                     
-                    REM Mostrar información de la base de datos (VERSIÓN CORREGIDA)
+                    REM Mostrar información de la base de datos
                     echo.
                     echo === USUARIOS EN LA BASE DE DATOS ===
                     python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; conn.close()"
@@ -102,9 +102,8 @@ pipeline {
                         pytest tests/ -v --junitxml=test-results.xml
                     ) else (
                         echo ⚠️ No se encontró la carpeta tests, saltando pruebas...
-                        echo <?xml version="1.0" encoding="UTF-8"?> > test-results.xml
-                        echo <testsuite name="pytest" tests="0" errors="0" failures="0" skipped="0"> >> test-results.xml
-                        echo </testsuite> >> test-results.xml
+                        REM Crear XML vacío usando Python en lugar de echo
+                        python -c "import xml.etree.ElementTree as ET; root=ET.Element('testsuite', {'name':'pytest','tests':'0','errors':'0','failures':'0','skipped':'0'}); tree=ET.ElementTree(root); tree.write('test-results.xml', encoding='utf-8', xml_declaration=True)"
                     )
                 '''
             }

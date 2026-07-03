@@ -5,37 +5,30 @@ pipeline {
         PYTHON_VERSION = '3.9'
         DB_PATH = 'database.db'
         ZAP_PORT = '8080'
-        TARGET_URL = 'http://localhost:5000'  // Corregido: comilla faltante
-        // Definir el ID de la credencial como variable para mejor mantenimiento
-        GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'  // Cambia esto por el ID que usaste en Jenkins
+        TARGET_URL = 'http://localhost:5000'
+        GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
     }
     
     stages {
         stage('Checkout') {
             steps {
                 echo 'Clonando repositorio con credenciales de GitHub...'
-                // Opción 1: Usar checkout con credenciales explícitas
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/Felipe-Droguett58/CiberSeguri-PruebaEva3.git',  // Cambia por tu URL
+                        url: 'https://github.com/Felipe-Droguett58/CiberSeguri-PruebaEva3.git',
                         credentialsId: env.GITHUB_CREDENTIALS_ID
                     ]]
                 ])
-                
-                // Opción 2: Alternativa más simple (descomenta si prefieres)
-                // git branch: 'main', 
-                //     url: 'https://github.com/tu-usuario/tu-repositorio.git',
-                //     credentialsId: env.GITHUB_CREDENTIALS_ID
             }
         }
         
         stage('Setup Environment') {
             steps {
                 echo 'Configurando entorno Python...'
-                sh '''
-                    pip install --upgrade pip
+                bat '''
+                    python -m pip install --upgrade pip
                     pip install -r requirements.txt
                     python create_db.py
                 '''
@@ -45,21 +38,20 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Construyendo aplicación...'
-                sh 'python -m py_compile vulnerable_app.py'
+                bat 'python -m py_compile vulnerable_app.py'
             }
         }
         
         stage('Test') {
             steps {
                 echo 'Ejecutando pruebas unitarias...'
-                sh '''
+                bat '''
                     pip install pytest
                     pytest tests/ -v --junitxml=test-results.xml
                 '''
             }
             post {
                 always {
-                    // Archivar resultados de pruebas para visualización en Jenkins
                     junit 'test-results.xml'
                 }
             }
@@ -68,10 +60,10 @@ pipeline {
         stage('Security Scan') {
             steps {
                 echo 'Ejecutando análisis de seguridad estático...'
-                sh '''
+                bat '''
                     pip install bandit safety
-                    bandit -r . -f json -o bandit-report.json || true  # No falla el pipeline si hay hallazgos
-                    safety check || true  # No falla el pipeline si hay hallazgos
+                    bandit -r . -f json -o bandit-report.json || exit 0
+                    safety check || exit 0
                 '''
             }
         }
@@ -79,13 +71,12 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Desplegando aplicación en background...'
-                // Mejor práctica: usar nohup para mantener el proceso
-                sh '''
-                    export FLASK_APP=vulnerable_app.py
-                    export FLASK_ENV=development
-                    nohup flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1 &
-                    sleep 5  # Esperar a que la aplicación inicie
-                    echo "Aplicación desplegada en $TARGET_URL"
+                bat '''
+                    set FLASK_APP=vulnerable_app.py
+                    set FLASK_ENV=development
+                    start /B flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1
+                    timeout /t 5 /nobreak
+                    echo Aplicación desplegada en %TARGET_URL%
                 '''
             }
         }
@@ -93,33 +84,45 @@ pipeline {
         stage('OWASP ZAP Scan') {
             steps {
                 echo 'Ejecutando OWASP ZAP scan...'
-                sh '''
-                    # Verificar si la aplicación está corriendo
-                    curl -s --retry 5 --retry-delay 2 $TARGET_URL || exit 1
+                bat '''
+                    echo Verificando si la aplicación está corriendo...
+                    curl -s --retry 5 --retry-delay 2 %TARGET_URL% || exit 1
                     
-                    # Instalar OWASP ZAP según el sistema operativo
-                    if command -v apt-get &> /dev/null; then
-                        apt-get update -qq && apt-get install -y -qq owasp-zap
-                    elif command -v brew &> /dev/null; then
-                        brew install owasp-zap
-                    elif command -v docker &> /dev/null; then
-                        # Usar Docker como alternativa
-                        docker run --rm -v $(pwd):/zap/wrk:rw -t owasp/zap2docker-stable \
-                            zap-full-scan.py -t $TARGET_URL -r zap-report.html
-                    else
-                        echo "No se pudo instalar OWASP ZAP"
-                        exit 1
-                    fi
+                    echo Intentando instalar OWASP ZAP...
+                    where choco >nul 2>nul
+                    if %errorlevel% equ 0 (
+                        choco install owasp-zap -y
+                    ) else (
+                        where winget >nul 2>nul
+                        if %errorlevel% equ 0 (
+                            winget install OWASP.ZAP -h
+                        ) else (
+                            echo OWASP ZAP no está instalado y no hay gestor de paquetes disponible
+                            echo Descarga e instala manualmente desde: https://www.zaproxy.org/download/
+                            echo O usa Docker Desktop con: docker run --rm -v %cd%:/zap/wrk:rw -t owasp/zap2docker-stable zap-full-scan.py -t %TARGET_URL% -r zap-report.html
+                            exit 1
+                        )
+                    )
                     
-                    # Ejecutar ZAP si se instaló correctamente
-                    if command -v zap-full-scan.py &> /dev/null; then
-                        zap-full-scan.py -t $TARGET_URL -r zap-report.html || true
-                    fi
+                    echo Ejecutando ZAP scan...
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || exit 0
+                    ) else if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || exit 0
+                    ) else (
+                        echo No se encontró zap-full-scan.py. Buscando en PATH...
+                        where zap-full-scan.py >nul 2>nul
+                        if %errorlevel% equ 0 (
+                            zap-full-scan.py -t %TARGET_URL% -r zap-report.html || exit 0
+                        ) else (
+                            echo No se pudo ejecutar ZAP. Instálalo manualmente.
+                            exit 1
+                        )
+                    )
                 '''
             }
             post {
                 always {
-                    // Archivar reporte de ZAP si existe
                     archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
                 }
             }
@@ -129,13 +132,12 @@ pipeline {
     post {
         always {
             echo 'Pipeline completado. Generando reportes...'
-            // Archivar todos los artefactos generados
             archiveArtifacts artifacts: 'bandit-report.json, test-results.xml', fingerprint: true
             
-            // Limpiar procesos en background
-            sh '''
-                pkill -f "flask run" || true
-                pkill -f "zap" || true
+            bat '''
+                echo Limpiando procesos en background...
+                taskkill /F /IM python.exe /FI "WINDOWTITLE eq flask*" 2>nul || exit 0
+                taskkill /F /IM java.exe /FI "WINDOWTITLE eq ZAP*" 2>nul || exit 0
             '''
         }
         success {

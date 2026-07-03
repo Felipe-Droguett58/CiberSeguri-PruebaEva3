@@ -62,8 +62,8 @@ pipeline {
                 echo 'Ejecutando análisis de seguridad estático...'
                 bat '''
                     pip install bandit safety
-                    bandit -r . -f json -o bandit-report.json || exit 0
-                    safety check || exit 0
+                    bandit -r . -f json -o bandit-report.json
+                    safety check
                 '''
             }
         }
@@ -74,7 +74,7 @@ pipeline {
                 bat '''
                     set FLASK_APP=vulnerable_app.py
                     set FLASK_ENV=development
-                    start /B flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1
+                    start /B flask run --host=0.0.0.0 --port=5000
                     timeout /t 5 /nobreak
                     echo Aplicación desplegada en %TARGET_URL%
                 '''
@@ -86,36 +86,26 @@ pipeline {
                 echo 'Ejecutando OWASP ZAP scan...'
                 bat '''
                     echo Verificando si la aplicación está corriendo...
-                    curl -s --retry 5 --retry-delay 2 %TARGET_URL% || exit 1
+                    curl -s --retry 5 --retry-delay 2 %TARGET_URL%
                     
-                    echo Intentando instalar OWASP ZAP...
-                    where choco >nul 2>nul
-                    if %errorlevel% equ 0 (
-                        choco install owasp-zap -y
-                    ) else (
-                        where winget >nul 2>nul
-                        if %errorlevel% equ 0 (
-                            winget install OWASP.ZAP -h
-                        ) else (
-                            echo OWASP ZAP no está instalado y no hay gestor de paquetes disponible
-                            echo Descarga e instala manualmente desde: https://www.zaproxy.org/download/
-                            echo O usa Docker Desktop con: docker run --rm -v %cd%:/zap/wrk:rw -t owasp/zap2docker-stable zap-full-scan.py -t %TARGET_URL% -r zap-report.html
-                            exit 1
-                        )
-                    )
+                    echo Intentando ejecutar OWASP ZAP...
                     
-                    echo Ejecutando ZAP scan...
+                    REM Buscar ZAP en ubicaciones comunes de Windows
                     if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || exit 0
+                        echo Usando ZAP desde Program Files...
+                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html
                     ) else if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || exit 0
+                        echo Usando ZAP desde Program Files (x86)...
+                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html
                     ) else (
-                        echo No se encontró zap-full-scan.py. Buscando en PATH...
-                        where zap-full-scan.py >nul 2>nul
+                        echo ZAP no encontrado. Instalando con Chocolatey...
+                        where choco
                         if %errorlevel% equ 0 (
-                            zap-full-scan.py -t %TARGET_URL% -r zap-report.html || exit 0
+                            choco install owasp-zap -y
+                            "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html
                         ) else (
-                            echo No se pudo ejecutar ZAP. Instálalo manualmente.
+                            echo ZAP no está instalado. Descarga manual desde: https://www.zaproxy.org/download/
+                            echo O instala Chocolatey y luego ejecuta: choco install owasp-zap -y
                             exit 1
                         )
                     )
@@ -136,8 +126,8 @@ pipeline {
             
             bat '''
                 echo Limpiando procesos en background...
-                taskkill /F /IM python.exe /FI "WINDOWTITLE eq flask*" 2>nul || exit 0
-                taskkill /F /IM java.exe /FI "WINDOWTITLE eq ZAP*" 2>nul || exit 0
+                taskkill /F /IM python.exe 2>nul
+                taskkill /F /IM java.exe 2>nul
             '''
         }
         success {

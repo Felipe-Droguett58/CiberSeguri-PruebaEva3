@@ -185,11 +185,11 @@ pipeline {
                     set ZAP_SCRIPT=
 
                     REM IMPORTANTE: usamos "if exist ... set VAR=..." en UNA sola
-                    REM línea (sin bloques multilinea "if (...) ( ... )"). Los
-                    REM bloques con parentesis se rompen porque la ruta
-                    REM "C:\Program Files (x86)\..." contiene un parentesis
-                    REM literal que descuadra el conteo de parentesis de cmd.exe
-                    REM cuando aparece dentro de un bloque if(...) multilinea.
+                    REM linea (sin bloques multilinea "if (...) ( ... )"). Los
+                    REM bloques con parentesis se rompen porque la ruta con
+                    REM Program Files (x86) contiene un parentesis literal que
+                    REM descuadra el conteo de parentesis de cmd.exe cuando
+                    REM aparece dentro de un bloque if(...) multilinea.
 
                     REM Desde ZAP 2.16+ el proyecto se independizó de OWASP y
                     REM la carpeta de instalación cambió de "OWASP" a "ZAP".

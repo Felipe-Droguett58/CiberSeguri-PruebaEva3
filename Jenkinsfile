@@ -39,8 +39,6 @@ pipeline {
                     
                     echo Configurando base de datos...
                     
-                    REM === MANEJO AUTOMÁTICO DE LA BASE DE DATOS ===
-                    
                     if exist database.db (
                         echo Base de datos encontrada, verificando estructura...
                         python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT name FROM sqlite_master WHERE type=\\'table\\' AND name=\\'users\\''); exit(0 if c.fetchone() else 1)" 2>nul
@@ -138,7 +136,6 @@ pipeline {
                     
                     if exist vulnerable_app.py (
                         echo Iniciando Flask...
-                        REM Usar python directamente en lugar de flask run para evitar problemas de redirección
                         start /B python -m flask run --host=0.0.0.0 --port=5000
                         timeout /t 5 /nobreak
                         
@@ -175,12 +172,19 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
+                    REM Buscar ZAP en ubicaciones comunes (CORREGIDO)
+                    set ZAP_PATH=
                     if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        echo Usando ZAP desde Program Files...
-                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
-                    ) else if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        echo Usando ZAP desde Program Files (x86)...
-                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
+                        set ZAP_PATH=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
+                    )
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                        set ZAP_PATH=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
+                    )
+                    
+                    if defined ZAP_PATH (
+                        echo Usando ZAP desde: %ZAP_PATH%
+                        python %ZAP_PATH% -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
+                        echo ✅ Escaneo ZAP completado
                     ) else (
                         echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...
                         echo ^<html^> > zap-report.html
@@ -191,6 +195,7 @@ pipeline {
                         echo ^<p^>Instala desde: ^<a href="https://www.zaproxy.org/download/"^>https://www.zaproxy.org/download/^</a^>^</p^> >> zap-report.html
                         echo ^</body^> >> zap-report.html
                         echo ^</html^> >> zap-report.html
+                        echo ⚠️ Reporte de advertencia generado
                     )
                 '''
             }

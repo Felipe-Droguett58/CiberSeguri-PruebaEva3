@@ -131,24 +131,30 @@ pipeline {
             steps {
                 echo 'Desplegando aplicación en background...'
                 script {
-                    // Antes de arrancar, liberar el puerto 5000 si algo quedó pegado
-                    // de un build anterior (matando SOLO ese proceso, no todo java/python)
-                    powershell '''
-                        $existing = Get-NetTCPConnection -LocalPort $env:APP_PORT -ErrorAction SilentlyContinue |
+                    // NOTA: usamos bat + powershell.exe (ruta completa) en vez del
+                    // step "powershell" de Jenkins, porque en este agente
+                    // "powershell" no está resoluble desde el PATH que usa Jenkins,
+                    // aunque sí existe en el sistema.
+
+                    // 1) Liberar el puerto 5000 si algo quedó pegado de un build
+                    //    anterior (matando SOLO ese proceso, no todo java/python)
+                    writeFile file: 'free_port.ps1', text: '''
+                        $existing = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue |
                                     Select-Object -ExpandProperty OwningProcess -Unique
                         if ($existing) {
                             foreach ($procId in $existing) {
-                                Write-Host "Liberando puerto $env:APP_PORT, matando PID $procId"
+                                Write-Host "Liberando puerto 5000, matando PID $procId"
                                 Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
                             }
                         } else {
-                            Write-Host "Puerto $env:APP_PORT libre, nada que limpiar"
+                            Write-Host "Puerto 5000 libre, nada que limpiar"
                         }
                     '''
+                    bat '%WINDIR%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File free_port.ps1'
 
-                    // Iniciar Flask usando PowerShell, guardando el PID exacto
-                    // en un archivo para poder limpiarlo de forma segura después
-                    powershell '''
+                    // 2) Iniciar Flask, guardando el PID exacto en un archivo
+                    //    para poder limpiarlo de forma segura después
+                    writeFile file: 'start_app.ps1', text: '''
                         Write-Host "=== INICIANDO APLICACIÓN ==="
                         $env:FLASK_APP = "vulnerable_app.py"
                         $env:FLASK_ENV = "development"
@@ -161,20 +167,20 @@ pipeline {
 
                             Start-Sleep -Seconds 8
 
-                            Write-Host "Verificando que la aplicación responda..."
+                            Write-Host "Verificando que la aplicacion responda..."
                             try {
                                 $response = Invoke-WebRequest -Uri "http://localhost:5000" -UseBasicParsing -TimeoutSec 5
                                 Write-Host "HTTP Status: $($response.StatusCode)"
                             } catch {
-                                Write-Host "⚠️ No se pudo conectar a la aplicación"
+                                Write-Host "No se pudo conectar a la aplicacion"
                             }
-                            Write-Host ""
-                            Write-Host "✅ Aplicación desplegada en http://localhost:5000 (PID $($proc.Id))"
+                            Write-Host "Aplicacion desplegada en http://localhost:5000 (PID $($proc.Id))"
                         } else {
-                            Write-Host "❌ vulnerable_app.py no encontrado"
+                            Write-Host "vulnerable_app.py no encontrado"
                             exit 1
                         }
                     '''
+                    bat '%WINDIR%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File start_app.ps1'
                 }
             }
         }
@@ -263,22 +269,27 @@ pipeline {
             // Limpieza SEGURA: solo mata el proceso Flask que este mismo build
             // lanzó (por PID guardado), nunca procesos java.exe/python.exe genéricos.
             // Matar java.exe a ciegas mata al propio Jenkins si corre sobre Windows.
-            powershell '''
+            // Usamos bat + powershell.exe (ruta completa) porque el step
+            // "powershell" de Jenkins no resuelve el ejecutable en este agente.
+            writeFile file: 'cleanup.ps1', text: '''
                 Write-Host "=== LIMPIANDO PROCESOS ==="
                 if (Test-Path "flask_pid.txt") {
                     $procId = Get-Content "flask_pid.txt"
                     try {
                         Stop-Process -Id $procId -Force -ErrorAction Stop
-                        Write-Host "✅ Proceso Flask (PID $procId) detenido"
+                        Write-Host "Proceso Flask (PID $procId) detenido"
                     } catch {
-                        Write-Host "⚠️ No se pudo detener el PID $procId (puede que ya no exista)"
+                        Write-Host "No se pudo detener el PID $procId (puede que ya no exista)"
                     }
                     Remove-Item "flask_pid.txt" -ErrorAction SilentlyContinue
                 } else {
                     Write-Host "No hay flask_pid.txt, nada que limpiar"
                 }
-                Write-Host "✅ Limpieza completada"
+                Write-Host "Limpieza completada"
             '''
+            catchError(buildResult: null, stageResult: null) {
+                bat '%WINDIR%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File cleanup.ps1'
+            }
 
             bat '''
                 echo.

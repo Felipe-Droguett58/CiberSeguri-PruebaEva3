@@ -69,10 +69,10 @@ pipeline {
                     :db_ok
                     echo ✅ Base de datos lista
                     
-                    REM Mostrar información de la base de datos
+                    REM Mostrar información de la base de datos (VERSIÓN CORREGIDA)
                     echo.
                     echo === USUARIOS EN LA BASE DE DATOS ===
-                    python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); try: c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; except: print('No se pudo leer la tabla'); conn.close()"
+                    python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; conn.close()"
                 '''
             }
         }

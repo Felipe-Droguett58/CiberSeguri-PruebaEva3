@@ -133,29 +133,34 @@ pipeline {
                     // Matar cualquier proceso Flask previo
                     bat 'taskkill /F /IM python.exe 2>nul || echo No hay procesos Python'
                     
-                    // Iniciar Flask en background usando python directamente (sin start /B)
-                    bat '''
-                        echo === INICIANDO APLICACIÓN ===
-                        set FLASK_APP=vulnerable_app.py
-                        set FLASK_ENV=development
+                    // Iniciar Flask usando PowerShell (más confiable)
+                    powershell '''
+                        Write-Host "=== INICIANDO APLICACIÓN ==="
+                        $env:FLASK_APP = "vulnerable_app.py"
+                        $env:FLASK_ENV = "development"
                         
-                        if exist vulnerable_app.py (
-                            echo Iniciando Flask...
+                        if (Test-Path "vulnerable_app.py") {
+                            Write-Host "Iniciando Flask..."
                             
-                            REM Iniciar Flask en segundo plano usando python
-                            start /MIN python -m flask run --host=0.0.0.0 --port=5000
+                            # Iniciar Flask en segundo plano
+                            Start-Process python -ArgumentList "-m", "flask", "run", "--host=0.0.0.0", "--port=5000" -WindowStyle Minimized
                             
-                            REM Esperar a que la aplicación inicie
-                            timeout /t 8 /nobreak
+                            # Esperar a que la aplicación inicie
+                            Start-Sleep -Seconds 8
                             
-                            echo Verificando que la aplicación responda...
-                            curl -s -o nul -w "HTTP Status: %%{http_code}" %TARGET_URL% || echo ⚠️ No se pudo conectar a la aplicación
-                            echo.
-                            echo ✅ Aplicación desplegada en %TARGET_URL%
-                        ) else (
-                            echo ❌ vulnerable_app.py no encontrado
+                            Write-Host "Verificando que la aplicación responda..."
+                            try {
+                                $response = Invoke-WebRequest -Uri "http://localhost:5000" -UseBasicParsing -TimeoutSec 5
+                                Write-Host "HTTP Status: $($response.StatusCode)"
+                            } catch {
+                                Write-Host "⚠️ No se pudo conectar a la aplicación"
+                            }
+                            Write-Host ""
+                            Write-Host "✅ Aplicación desplegada en http://localhost:5000"
+                        } else {
+                            Write-Host "❌ vulnerable_app.py no encontrado"
                             exit 1
-                        )
+                        }
                     '''
                 }
             }
@@ -182,7 +187,6 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
-                    REM Buscar ZAP en múltiples ubicaciones
                     set ZAP_FOUND=0
                     set ZAP_SCRIPT=
                     
@@ -207,7 +211,6 @@ pipeline {
                         echo ✅ ZAP encontrado en: %ZAP_SCRIPT%
                         echo Ejecutando escaneo...
                         
-                        REM Verificar si es un script Python o un batch
                         echo %ZAP_SCRIPT% | find ".py" >nul
                         if %errorlevel% equ 0 (
                             python %ZAP_SCRIPT% -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas

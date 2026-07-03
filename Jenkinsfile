@@ -172,24 +172,29 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
-                    REM Buscar ZAP usando Python en lugar de CMD (más confiable)
-                    python -c "import os, subprocess, sys; paths = ['C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py', 'C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py']; found = None; [sys.exit(0) if os.path.exists(p) and (found := p) else None for p in paths]; sys.exit(1) if found is None else None" 2>nul
+                    REM Verificar si ZAP está instalado (con manejo de error)
+                    python -c "import os; exit(0) if os.path.exists('C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py') or os.path.exists('C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py') else exit(1)" 2>nul
                     
                     if %errorlevel% equ 0 (
-                        echo Usando ZAP desde Python...
+                        echo ZAP encontrado, ejecutando escaneo...
                         python -c "import os, subprocess; paths = ['C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py', 'C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py']; found = next((p for p in paths if os.path.exists(p)), None); subprocess.run(['python', found, '-t', 'http://localhost:5000', '-r', 'zap-report.html'], shell=True) if found else None" || echo ⚠️ ZAP encontró problemas
                         echo ✅ Escaneo ZAP completado
                     ) else (
-                        echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...
+                        echo ⚠️ ZAP no instalado - generando reporte de advertencia...
                         echo ^<html^> > zap-report.html
                         echo ^<head^>^<title^>ZAP Report^</title^>^</head^> >> zap-report.html
                         echo ^<body^> >> zap-report.html
                         echo ^<h1 style="color: orange;"^>⚠️ OWASP ZAP no instalado^</h1^> >> zap-report.html
                         echo ^<p^>ZAP no se encontró en el sistema.^</p^> >> zap-report.html
                         echo ^<p^>Instala desde: ^<a href="https://www.zaproxy.org/download/"^>https://www.zaproxy.org/download/^</a^>^</p^> >> zap-report.html
+                        echo ^<p^>Rutas buscadas:^</p^> >> zap-report.html
+                        echo ^<ul^> >> zap-report.html
+                        echo ^<li^>C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py^</li^> >> zap-report.html
+                        echo ^<li^>C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py^</li^> >> zap-report.html
+                        echo ^</ul^> >> zap-report.html
                         echo ^</body^> >> zap-report.html
                         echo ^</html^> >> zap-report.html
-                        echo ⚠️ Reporte de advertencia generado
+                        echo ✅ Reporte de advertencia generado
                     )
                 '''
             }

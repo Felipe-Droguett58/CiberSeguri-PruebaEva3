@@ -159,6 +159,9 @@ pipeline {
         }
 
         stage('OWASP ZAP Scan') {
+            options {
+                timeout(time: 10, unit: 'MINUTES')
+            }
             steps {
                 echo 'Ejecutando OWASP ZAP scan...'
                 bat '''
@@ -182,6 +185,28 @@ pipeline {
                     set ZAP_FOUND=0
                     set ZAP_SCRIPT=
 
+                    REM Desde ZAP 2.16+ el proyecto se independizó de OWASP y
+                    REM la carpeta de instalación cambió de "OWASP" a "ZAP".
+                    REM Revisamos ambas rutas, 64 y 32 bits, .bat y .exe.
+
+                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat
+                    )
+                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe
+                    )
+                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat
+                    )
+                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe" (
+                        set ZAP_FOUND=1
+                        set ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe
+                    )
+
+                    REM Rutas antiguas (versiones antes del rebranding, por compatibilidad)
                     if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
                         set ZAP_FOUND=1
                         set ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py

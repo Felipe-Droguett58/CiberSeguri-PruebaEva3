@@ -8,7 +8,7 @@ pipeline {
         TARGET_URL = 'http://localhost:5000'
         GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
         // Controlar si se reinicia la DB (true = eliminar y recrear)
-        RESET_DATABASE = 'false'  // Cambiar a 'true' para resetear en cada ejecución
+        RESET_DATABASE = 'true'  // Cambiar a 'true' para resetear en cada ejecución
     }
     
     stages {

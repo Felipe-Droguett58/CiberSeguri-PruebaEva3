@@ -182,46 +182,32 @@ pipeline {
 
                     echo === ESCANEO OWASP ZAP ===
 
-                    set ZAP_FOUND=0
                     set ZAP_SCRIPT=
+
+                    REM IMPORTANTE: usamos "if exist ... set VAR=..." en UNA sola
+                    REM línea (sin bloques multilinea "if (...) ( ... )"). Los
+                    REM bloques con parentesis se rompen porque la ruta
+                    REM "C:\Program Files (x86)\..." contiene un parentesis
+                    REM literal que descuadra el conteo de parentesis de cmd.exe
+                    REM cuando aparece dentro de un bloque if(...) multilinea.
 
                     REM Desde ZAP 2.16+ el proyecto se independizó de OWASP y
                     REM la carpeta de instalación cambió de "OWASP" a "ZAP".
-                    REM Revisamos ambas rutas, 64 y 32 bits, .bat y .exe.
-
-                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat
-                    )
-                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe
-                    )
-                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat
-                    )
-                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe
-                    )
+                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat"
+                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe" set "ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.exe"
+                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat"
+                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe" set "ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.exe"
 
                     REM Rutas antiguas (versiones antes del rebranding, por compatibilidad)
-                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
+                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat"
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py"
+                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat"
+
+                    if "%ZAP_SCRIPT%"=="" (
+                        set ZAP_FOUND=0
+                    ) else (
                         set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
-                    )
-                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat
-                    )
-                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
-                    )
-                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat" (
-                        set ZAP_FOUND=1
-                        set ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat
                     )
 
                     if %ZAP_FOUND% equ 1 (

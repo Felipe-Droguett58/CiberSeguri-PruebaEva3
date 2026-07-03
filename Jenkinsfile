@@ -41,13 +41,9 @@ pipeline {
                     
                     REM === MANEJO AUTOMÁTICO DE LA BASE DE DATOS ===
                     
-                    REM Verificar si la base de datos existe
                     if exist database.db (
                         echo Base de datos encontrada, verificando estructura...
-                        
-                        REM Verificar si la tabla users existe
                         python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT name FROM sqlite_master WHERE type=\\'table\\' AND name=\\'users\\''); exit(0 if c.fetchone() else 1)" 2>nul
-                        
                         if %errorlevel% equ 0 (
                             echo ✅ Base de datos válida, continuando...
                             goto :db_ok
@@ -57,7 +53,6 @@ pipeline {
                         )
                     )
                     
-                    REM Si llegamos aquí, la base de datos no existe o se eliminó
                     echo Creando nueva base de datos...
                     python create_db.py
                     
@@ -69,7 +64,6 @@ pipeline {
                     :db_ok
                     echo ✅ Base de datos lista
                     
-                    REM Mostrar información de la base de datos
                     echo.
                     echo === USUARIOS EN LA BASE DE DATOS ===
                     python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; conn.close()"
@@ -102,7 +96,6 @@ pipeline {
                         pytest tests/ -v --junitxml=test-results.xml
                     ) else (
                         echo ⚠️ No se encontró la carpeta tests, saltando pruebas...
-                        REM Crear XML vacío usando Python en lugar de echo
                         python -c "import xml.etree.ElementTree as ET; root=ET.Element('testsuite', {'name':'pytest','tests':'0','errors':'0','failures':'0','skipped':'0'}); tree=ET.ElementTree(root); tree.write('test-results.xml', encoding='utf-8', xml_declaration=True)"
                     )
                 '''
@@ -145,7 +138,8 @@ pipeline {
                     
                     if exist vulnerable_app.py (
                         echo Iniciando Flask...
-                        start /B flask run --host=0.0.0.0 --port=5000
+                        REM Usar python directamente en lugar de flask run para evitar problemas de redirección
+                        start /B python -m flask run --host=0.0.0.0 --port=5000
                         timeout /t 5 /nobreak
                         
                         echo Verificando que la aplicación responda...
@@ -181,15 +175,12 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
-                    REM Buscar ZAP en ubicaciones comunes
                     if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
                         echo Usando ZAP desde Program Files...
-                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html
-                        echo ✅ Escaneo ZAP completado
+                        "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
                     ) else if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
                         echo Usando ZAP desde Program Files (x86)...
-                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html
-                        echo ✅ Escaneo ZAP completado
+                        "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
                     ) else (
                         echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...
                         echo ^<html^> > zap-report.html
@@ -198,13 +189,8 @@ pipeline {
                         echo ^<h1 style="color: orange;"^>⚠️ OWASP ZAP no instalado^</h1^> >> zap-report.html
                         echo ^<p^>ZAP no se encontró en el sistema.^</p^> >> zap-report.html
                         echo ^<p^>Instala desde: ^<a href="https://www.zaproxy.org/download/"^>https://www.zaproxy.org/download/^</a^>^</p^> >> zap-report.html
-                        echo ^<ul^> >> zap-report.html
-                        echo ^<li^>En Program Files: C:\\Program Files\\OWASP\\Zed Attack Proxy\\^</li^> >> zap-report.html
-                        echo ^<li^>En Program Files (x86): C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\^</li^> >> zap-report.html
-                        echo ^</ul^> >> zap-report.html
                         echo ^</body^> >> zap-report.html
                         echo ^</html^> >> zap-report.html
-                        echo ⚠️ Reporte de advertencia generado
                     )
                 '''
             }

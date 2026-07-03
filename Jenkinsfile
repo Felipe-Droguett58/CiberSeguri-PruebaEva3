@@ -7,8 +7,6 @@ pipeline {
         ZAP_PORT = '8080'
         TARGET_URL = 'http://localhost:5000'
         GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
-        // Controlar si se reinicia la DB (true = eliminar y recrear)
-        RESET_DATABASE = 'true'  // Cambiar a 'true' para resetear en cada ejecución
     }
     
     stages {
@@ -41,32 +39,40 @@ pipeline {
                     
                     echo Configurando base de datos...
                     
-                    REM === MANEJO AVANZADO DE LA BASE DE DATOS ===
+                    REM === MANEJO AUTOMÁTICO DE LA BASE DE DATOS ===
                     
-                    REM 1. Verificar si la base de datos existe y debe resetearse
-                    if "%RESET_DATABASE%"=="true" (
-                        echo Reiniciando base de datos...
-                        if exist database.db (
-                            echo Eliminando database.db existente...
+                    REM Verificar si la base de datos existe
+                    if exist database.db (
+                        echo Base de datos encontrada, verificando estructura...
+                        
+                        REM Verificar si la tabla users existe
+                        python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT name FROM sqlite_master WHERE type=\\'table\\' AND name=\\'users\\''); exit(0 if c.fetchone() else 1)" 2>nul
+                        
+                        if %errorlevel% equ 0 (
+                            echo ✅ Base de datos válida, continuando...
+                            goto :db_ok
+                        ) else (
+                            echo ⚠️ Base de datos corrupta o incompleta, recreando...
                             del database.db
                         )
                     )
                     
-                    REM 2. Ejecutar create_db.py con manejo de errores
+                    REM Si llegamos aquí, la base de datos no existe o se eliminó
+                    echo Creando nueva base de datos...
                     python create_db.py
                     
-                    REM 3. Verificar que la base de datos se creó correctamente
-                    if exist database.db (
-                        echo ✅ Base de datos creada exitosamente
-                        
-                        REM 4. Mostrar información de la base de datos
-                        echo.
-                        echo === USUARIOS EN LA BASE DE DATOS ===
-                        python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; conn.close()" 2>nul || echo No se pudo mostrar usuarios
-                    ) else (
-                        echo ❌ Error: No se pudo crear la base de datos
+                    if %errorlevel% neq 0 (
+                        echo ❌ Error al crear la base de datos
                         exit 1
                     )
+                    
+                    :db_ok
+                    echo ✅ Base de datos lista
+                    
+                    REM Mostrar información de la base de datos
+                    echo.
+                    echo === USUARIOS EN LA BASE DE DATOS ===
+                    python -c "import sqlite3; conn=sqlite3.connect('database.db'); c=conn.cursor(); try: c.execute('SELECT id, username, role FROM users'); print('ID | Usuario | Rol'); print('---|---------|-----'); [print(f'{row[0]:2} | {row[1]:7} | {row[2]}') for row in c.fetchall()]; except: print('No se pudo leer la tabla'); conn.close()"
                 '''
             }
         }
@@ -225,7 +231,6 @@ pipeline {
                 echo ✅ Limpieza completada
             '''
             
-            // Mostrar resumen de artefactos
             bat '''
                 echo.
                 echo === ARTEFACTOS GENERADOS ===
@@ -240,7 +245,6 @@ pipeline {
             echo '❌ ❌ ❌ PIPELINE FALLÓ ❌ ❌ ❌'
             echo 'Revisa los logs para identificar el error'
             
-            // Mostrar errores comunes
             bat '''
                 echo.
                 echo === POSIBLES CAUSAS DE ERROR ===

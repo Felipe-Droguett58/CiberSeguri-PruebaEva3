@@ -172,18 +172,12 @@ pipeline {
                     
                     echo === ESCANEO OWASP ZAP ===
                     
-                    REM Buscar ZAP en ubicaciones comunes (CORREGIDO)
-                    set ZAP_PATH=
-                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        set ZAP_PATH=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
-                    )
-                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py" (
-                        set ZAP_PATH=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap-full-scan.py
-                    )
+                    REM Buscar ZAP usando Python en lugar de CMD (más confiable)
+                    python -c "import os, subprocess, sys; paths = ['C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py', 'C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py']; found = None; [sys.exit(0) if os.path.exists(p) and (found := p) else None for p in paths]; sys.exit(1) if found is None else None" 2>nul
                     
-                    if defined ZAP_PATH (
-                        echo Usando ZAP desde: %ZAP_PATH%
-                        python %ZAP_PATH% -t %TARGET_URL% -r zap-report.html || echo ⚠️ ZAP encontró problemas
+                    if %errorlevel% equ 0 (
+                        echo Usando ZAP desde Python...
+                        python -c "import os, subprocess; paths = ['C:\\\\Program Files\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py', 'C:\\\\Program Files (x86)\\\\OWASP\\\\Zed Attack Proxy\\\\zap-full-scan.py']; found = next((p for p in paths if os.path.exists(p)), None); subprocess.run(['python', found, '-t', 'http://localhost:5000', '-r', 'zap-report.html'], shell=True) if found else None" || echo ⚠️ ZAP encontró problemas
                         echo ✅ Escaneo ZAP completado
                     ) else (
                         echo ⚠️ ZAP no encontrado. Generando reporte de advertencia...

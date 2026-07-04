@@ -6,7 +6,7 @@ pipeline {
         DB_PATH = 'database.db'
         ZAP_PORT = '8080'
         TARGET_URL = 'http://localhost:5000'
-        GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
+        GITHUB_CREDENTIALS_ID = 'PruebaEv3'
     }
     
     stages {

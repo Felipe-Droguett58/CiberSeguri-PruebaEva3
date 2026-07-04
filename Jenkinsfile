@@ -261,9 +261,9 @@ pipeline {
             }
         }
         
-        stage('OWASP ZAP Scan') {
+       stage('OWASP ZAP Scan') {
             steps {
-                echo 'Ejecutando OWASP ZAP scan...'
+                echo '=== ESCANEO OWASP ZAP CON DOCKER ==='
                 bat '''
                     echo === VERIFICANDO APLICACIÓN ===
                     curl -s --retry 5 --retry-delay 2 %TARGET_URL%
@@ -272,28 +272,32 @@ pipeline {
                         exit 1
                     )
                     
+                    echo ✅ Aplicación responde correctamente
+                    echo.
                     echo === ESCANEO OWASP ZAP ===
-                    set "ZAP_SCRIPT="
                     
-                    if exist "C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\ZAP\\Zed Attack Proxy\\zap.bat"
-                    if exist "C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\ZAP\\Zed Attack Proxy\\zap.bat"
-                    if exist "C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files\\OWASP\\Zed Attack Proxy\\zap.bat"
-                    if exist "C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat" set "ZAP_SCRIPT=C:\\Program Files (x86)\\OWASP\\Zed Attack Proxy\\zap.bat"
+                    docker run --rm -v "%cd%":/zap/wrk:rw ^
+                        owasp/zap2docker-stable ^
+                        zap-full-scan.py -t %TARGET_URL% ^
+                        -r zap-report.html ^
+                        -z "-config globalexcludeurl.url_list.url.regex=" ^
+                        || echo ⚠️ ZAP completado (con advertencias)
                     
-                    if defined ZAP_SCRIPT (
-                        echo ✅ ZAP encontrado
-                        "%ZAP_SCRIPT%" -cmd -quickurl %TARGET_URL% -quickprogress -quickout zap-report.html || echo ⚠️ ZAP encontró problemas
+                    if exist zap-report.html (
                         echo ✅ Escaneo ZAP completado
+                        echo 📊 Reporte: zap-report.html
                     ) else (
-                        echo ⚠️ ZAP no encontrado
-                        echo ^<html^> > zap-report.html
-                        echo ^<head^>^<title^>ZAP Report^</title^>^</head^> >> zap-report.html
-                        echo ^<body^> >> zap-report.html
-                        echo ^<h1 style="color: orange;"^>⚠️ OWASP ZAP no instalado^</h1^> >> zap-report.html
-                        echo ^<p^>ZAP no se encontró en el sistema.^</p^> >> zap-report.html
-                        echo ^</body^> >> zap-report.html
-                        echo ^</html^> >> zap-report.html
-                        echo ✅ Reporte de advertencia generado
+                        echo ⚠️ Generando reporte de advertencia...
+                        (
+                            echo ^<html^>
+                            echo ^<head^>^<title^>ZAP Report^</title^>^</head^>
+                            echo ^<body^>
+                            echo ^<h1 style="color: orange;"^>⚠^;ZAP No Disponible^</h1^>
+                            echo ^<p^>El escaneo no se pudo completar.^</p^>
+                            echo ^<p^>Fecha: %DATE% %TIME%^</p^>
+                            echo ^</body^>
+                            echo ^</html^>
+                        ) > zap-report.html
                     )
                 '''
             }

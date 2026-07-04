@@ -79,7 +79,7 @@ pipeline {
             steps {
                 echo '=== EJECUTANDO ANÁLISIS CON SONARQUBE ==='
                 script {
-                    // Verificar que SonarQube esté corriendo - CORREGIDO
+                    // Verificar que SonarQube esté corriendo
                     try {
                         def sonarStatus = bat(
                             script: "curl -s -o nul -w \"%%{http_code}\" http://localhost:9000/api/system/status",
@@ -87,79 +87,47 @@ pipeline {
                         ).trim()
                         echo "SonarQube Status Code: ${sonarStatus}"
                     } catch (Exception e) {
-                        echo '⚠️ SonarQube no está disponible. Verifica que esté corriendo.'
-                        echo 'Ejecuta: docker start sonarqube-custom'
+                        echo '⚠️ SonarQube no está disponible.'
                     }
                 }
                 
                 bat '''
                     echo Verificando SonarQube Scanner...
                     
-                    REM Buscar sonar-scanner en múltiples ubicaciones
-                    set "SONAR_SCANNER="
+                    REM Crear sonar-project.properties
+                    (
+                        echo sonar.projectKey=%SONAR_PROJECT_KEY%
+                        echo sonar.projectName=%SONAR_PROJECT_NAME%
+                        echo sonar.projectVersion=1.0
+                        echo sonar.sources=.
+                        echo sonar.exclusions=**/tests/**,**/venv/**,**/__pycache__/**,**/node_modules/**
+                        echo sonar.python.version=3.9
+                        echo sonar.python.coverage.reportPaths=coverage.xml
+                        echo sonar.host.url=%SONAR_HOST_URL%
+                    ) > sonar-project.properties
                     
-                    REM Buscar en rutas comunes de Windows
-                    if exist "C:\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=C:\\sonar-scanner\\bin\\sonar-scanner.bat"
-                    if exist "C:\\Program Files\\SonarQube\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=C:\\Program Files\\SonarQube\\sonar-scanner\\bin\\sonar-scanner.bat"
-                    if exist "%USERPROFILE%\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=%USERPROFILE%\\sonar-scanner\\bin\\sonar-scanner.bat"
+                    echo Ejecutando análisis de SonarQube con Docker...
                     
-                    REM Intentar con el comando directo si está en PATH
-                    where sonar-scanner >nul 2>nul
-                    if %errorlevel% equ 0 set "SONAR_SCANNER=sonar-scanner"
+                    REM Usar Docker para ejecutar SonarQube Scanner
+                    docker run --rm -v "%cd%":/usr/src -v sonar-scanner-data:/root/.sonar/cache ^
+                        sonarsource/sonar-scanner-cli:latest ^
+                        -Dsonar.projectKey=%SONAR_PROJECT_KEY% ^
+                        -Dsonar.projectName=%SONAR_PROJECT_NAME% ^
+                        -Dsonar.projectVersion=1.0 ^
+                        -Dsonar.sources=. ^
+                        -Dsonar.exclusions=**/tests/**,**/venv/**,**/__pycache__/**,**/node_modules/** ^
+                        -Dsonar.python.version=3.9 ^
+                        -Dsonar.python.coverage.reportPaths=coverage.xml ^
+                        -Dsonar.host.url=%SONAR_HOST_URL% ^
+                        -Dsonar.token=%SONAR_TOKEN%
                     
-                    if defined SONAR_SCANNER (
-                        echo ✅ SonarQube Scanner encontrado
-                        
-                        echo Creando sonar-project.properties...
-                        (
-                            echo sonar.projectKey=%SONAR_PROJECT_KEY%
-                            echo sonar.projectName=%SONAR_PROJECT_NAME%
-                            echo sonar.projectVersion=1.0
-                            echo sonar.sources=.
-                            echo sonar.exclusions=**/tests/**,**/venv/**,**/__pycache__/**,**/node_modules/**
-                            echo sonar.python.version=3.9
-                            echo sonar.python.coverage.reportPaths=coverage.xml
-                            echo sonar.host.url=%SONAR_HOST_URL%
-                        ) > sonar-project.properties
-                        
-                        echo Ejecutando análisis de SonarQube...
-                        "%SONAR_SCANNER%" -Dsonar.token=%SONAR_TOKEN%
-                        
-                        if %errorlevel% equ 0 (
-                            echo ✅ Análisis SonarQube completado exitosamente
-                            echo 📊 Ver resultados en: %SONAR_HOST_URL%/dashboard?id=%SONAR_PROJECT_KEY%
-                        ) else (
-                            echo ⚠️ SonarQube encontró problemas en el código
-                        )
-                    ) else (
-                        echo ⚠️ SonarQube Scanner no encontrado
-                        echo Intentando instalar con npm...
-                        where npm >nul 2>nul
-                        if %errorlevel% equ 0 (
-                            npm install -g sonarqube-scanner 2>nul
-                            if exist "%APPDATA%\\npm\\sonar-scanner.cmd" (
-                                echo ✅ SonarQube Scanner instalado via npm
-                                "%APPDATA%\\npm\\sonar-scanner.cmd" -Dsonar.token=%SONAR_TOKEN%
-                            )
-                        ) else (
-                            echo ❌ No se pudo instalar SonarQube Scanner
-                            echo Descargar desde: https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/
-                            
-                            REM Generar reporte de advertencia
-                            echo ^<html^> > sonarqube-report.html
-                            echo ^<head^>^<title^>SonarQube Report^</title^>^</head^> >> sonarqube-report.html
-                            echo ^<body^> >> sonarqube-report.html
-                            echo ^<h1 style="color: orange;"^>⚠️ SonarQube Scanner no disponible^</h1^> >> sonarqube-report.html
-                            echo ^<p^>El análisis de SonarQube no se pudo ejecutar.^</p^> >> sonarqube-report.html
-                            echo ^</body^> >> sonarqube-report.html
-                            echo ^</html^> >> sonarqube-report.html
-                        )
-                    )
+                    echo ✅ Análisis SonarQube completado
+                    echo 📊 Ver resultados en: %SONAR_HOST_URL%/dashboard?id=%SONAR_PROJECT_KEY%
                 '''
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'sonar-project.properties, sonarqube-report.html', fingerprint: true
+                    archiveArtifacts artifacts: 'sonar-project.properties', fingerprint: true
                 }
             }
         }

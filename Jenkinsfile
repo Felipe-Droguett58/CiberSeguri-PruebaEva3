@@ -10,9 +10,9 @@ pipeline {
         
         // SonarQube Configuration
         SONAR_HOST_URL = 'http://localhost:9000'  // Cambiar si usas otro puerto
-        SONAR_TOKEN = credentials('sonar-token')   // Crear en Jenkins > Credentials
-        SONAR_PROJECT_KEY = 'CiberSeguri-PruebaEva3'
-        SONAR_PROJECT_NAME = 'CiberSeguri-PruebaEva3'
+        SONAR_TOKEN = credentials('sqp_18e058bf7659a28b1389eb330441bb409b0e46b2')   // Crear en Jenkins > Credentials
+        SONAR_PROJECT_KEY = 'Ciberseguri_Ev3'
+        SONAR_PROJECT_NAME = 'Ciberseguri_Ev3'
     }
     
     stages {

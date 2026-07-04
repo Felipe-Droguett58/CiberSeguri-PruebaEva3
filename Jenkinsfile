@@ -279,7 +279,7 @@ pipeline {
                     echo === ESCANEO OWASP ZAP ===
                     
                     docker run --rm -v "%cd%":/zap/wrk:rw ^
-                        owasp/zap2docker-stable ^
+                        zap2docker-stable ^
                         zap-full-scan.py -t %TARGET_URL% ^
                         -r zap-report.html ^
                         -z "-config globalexcludeurl.url_list.url.regex=" ^

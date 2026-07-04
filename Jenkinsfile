@@ -76,14 +76,14 @@ pipeline {
                 bat '''
                     echo Generando reporte de SonarQube no disponible...
                     (
-                        echo <html>
-                        echo <head><title>SonarQube Report</title></head>
-                        echo <body>
-                        echo <h1 style="color: orange;">⚠️ Análisis SonarQube omitido</h1>
-                        echo <p>El análisis se omitió para permitir que el pipeline continúe.</p>
-                        echo <p>Fecha: %DATE% %TIME%</p>
-                        echo </body>
-                        echo </html>
+                        echo ^<html^>
+                        echo ^<head^>^<title^>SonarQube Report^</title^>^</head^>
+                        echo ^<body^>
+                        echo ^<h1 style="color: orange;"^>⚠^;Análisis SonarQube omitido^</h1^>
+                        echo ^<p^>El análisis se omitió para permitir que el pipeline continúe.^</p^>
+                        echo ^<p^>Fecha: %DATE% %TIME%^</p^>
+                        echo ^</body^>
+                        echo ^</html^>
                     ) > sonarqube-report.html
                     
                     echo ✅ Reporte generado

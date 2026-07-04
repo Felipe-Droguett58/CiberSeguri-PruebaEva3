@@ -8,13 +8,13 @@ pipeline {
         TARGET_URL = 'http://localhost:5000'
         GITHUB_CREDENTIALS_ID = 'token_pruebaEv3'
         
-        // SonarQube Configuration
-        SONAR_HOST_URL = 'http://localhost:9000'  // Cambiar si usas otro puerto
-        SONAR_TOKEN = credentials('sonarqube-Ev3')   // Crear en Jenkins > Credentials
-        SONAR_PROJECT_KEY = 'Ciberseguri_Ev3'
-        SONAR_PROJECT_NAME = 'Ciberseguri_Ev3'
+        // SonarQube Configuration - CORREGIDO PARA DOCKER
+        SONAR_HOST_URL = 'http://host.docker.internal:9000'  // ← CAMBIADO de localhost
+        SONAR_TOKEN = credentials('sonar-token')
+        SONAR_PROJECT_KEY = 'ciberseguri_Ev3'
+        SONAR_PROJECT_NAME = 'ciberseguri_Ev3'
     }
-    
+        
     stages {
         stage('Checkout') {
             steps {

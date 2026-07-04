@@ -165,9 +165,7 @@ pipeline {
                     findstr /N /C:"debug=True" /C:"SECRET_KEY =" /C:"DEBUG = True" vulnerable_app.py >> reports/vulnerabilities.txt 2>nul
                     
                     echo ✅ Análisis completado
-                    echo.
-                    echo === RESULTADOS DEL ANÁLISIS ===
-                    findstr /V /C:"=====" reports/vulnerabilities.txt
+                    echo ✅ Reporte guardado en reports/vulnerabilities.txt
                 '''
             }
             post {

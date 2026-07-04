@@ -90,7 +90,7 @@ def login():
 
         conn = get_db_connection()
         try:
-            # ✅ CONSULTA PARAMETRIZADA - SQL INJECTION PREVENIDO
+            #  CONSULTA PARAMETRIZADA - SQL INJECTION PREVENIDO
             query = "SELECT * FROM users WHERE username = ? AND password = ?"
             hashed_password = hash_password(password)
             user = conn.execute(query, (username, hashed_password)).fetchone()

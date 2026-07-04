@@ -78,17 +78,17 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo '=== EJECUTANDO ANÁLISIS CON SONARQUBE ==='
-                
-                // Verificar que SonarQube esté corriendo
                 script {
-                    def sonarStatus = bat(
-                        script: "curl -s -o nul -w \"%{http_code}\" ${SONAR_HOST_URL}/api/system/status",
-                        returnStdout: true
-                    ).trim()
-                    
-                    if (sonarStatus != '200') {
+                    // Verificar que SonarQube esté corriendo - CORREGIDO
+                    try {
+                        def sonarStatus = bat(
+                            script: "curl -s -o nul -w \"%%{http_code}\" http://localhost:9000/api/system/status",
+                            returnStdout: true
+                        ).trim()
+                        echo "SonarQube Status Code: ${sonarStatus}"
+                    } catch (Exception e) {
                         echo '⚠️ SonarQube no está disponible. Verifica que esté corriendo.'
-                        echo 'Para ejecutar SonarQube localmente: docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community'
+                        echo 'Ejecuta: docker start sonarqube-custom'
                     }
                 }
                 
@@ -98,6 +98,7 @@ pipeline {
                     REM Buscar sonar-scanner en múltiples ubicaciones
                     set "SONAR_SCANNER="
                     
+                    REM Buscar en rutas comunes de Windows
                     if exist "C:\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=C:\\sonar-scanner\\bin\\sonar-scanner.bat"
                     if exist "C:\\Program Files\\SonarQube\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=C:\\Program Files\\SonarQube\\sonar-scanner\\bin\\sonar-scanner.bat"
                     if exist "%USERPROFILE%\\sonar-scanner\\bin\\sonar-scanner.bat" set "SONAR_SCANNER=%USERPROFILE%\\sonar-scanner\\bin\\sonar-scanner.bat"
@@ -109,15 +110,17 @@ pipeline {
                     if defined SONAR_SCANNER (
                         echo ✅ SonarQube Scanner encontrado
                         
-                        REM Crear sonar-project.properties
-                        echo sonar.projectKey=%SONAR_PROJECT_KEY% > sonar-project.properties
-                        echo sonar.projectName=%SONAR_PROJECT_NAME% >> sonar-project.properties
-                        echo sonar.projectVersion=1.0 >> sonar-project.properties
-                        echo sonar.sources=. >> sonar-project.properties
-                        echo sonar.exclusions=**/tests/**,**/venv/**,**/__pycache__/**,**/node_modules/** >> sonar-project.properties
-                        echo sonar.python.version=3.9 >> sonar-project.properties
-                        echo sonar.python.coverage.reportPaths=coverage.xml >> sonar-project.properties
-                        echo sonar.host.url=%SONAR_HOST_URL% >> sonar-project.properties
+                        echo Creando sonar-project.properties...
+                        (
+                            echo sonar.projectKey=%SONAR_PROJECT_KEY%
+                            echo sonar.projectName=%SONAR_PROJECT_NAME%
+                            echo sonar.projectVersion=1.0
+                            echo sonar.sources=.
+                            echo sonar.exclusions=**/tests/**,**/venv/**,**/__pycache__/**,**/node_modules/**
+                            echo sonar.python.version=3.9
+                            echo sonar.python.coverage.reportPaths=coverage.xml
+                            echo sonar.host.url=%SONAR_HOST_URL%
+                        ) > sonar-project.properties
                         
                         echo Ejecutando análisis de SonarQube...
                         "%SONAR_SCANNER%" -Dsonar.token=%SONAR_TOKEN%
@@ -130,28 +133,33 @@ pipeline {
                         )
                     ) else (
                         echo ⚠️ SonarQube Scanner no encontrado
-                        echo Instalar desde: https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/
-                        
-                        REM Generar reporte de advertencia
-                        echo ^<html^> > sonarqube-report.html
-                        echo ^<head^>^<title^>SonarQube Report^</title^>^</head^> >> sonarqube-report.html
-                        echo ^<body^> >> sonarqube-report.html
-                        echo ^<h1 style="color: orange;"^>⚠️ SonarQube no disponible^</h1^> >> sonarqube-report.html
-                        echo ^<p^>El análisis de SonarQube no se pudo ejecutar.^</p^> >> sonarqube-report.html
-                        echo ^<p^>Pasos para instalar:^</p^> >> sonarqube-report.html
-                        echo ^<ol^> >> sonarqube-report.html
-                        echo ^<li^>Descargar sonar-scanner de https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/^</li^> >> sonarqube-report.html
-                        echo ^<li^>Extraer en C:\\sonar-scanner^</li^> >> sonarqube-report.html
-                        echo ^<li^>Agregar a PATH^</li^> >> sonarqube-report.html
-                        echo ^</ol^> >> sonarqube-report.html
-                        echo ^</body^> >> sonarqube-report.html
-                        echo ^</html^> >> sonarqube-report.html
+                        echo Intentando instalar con npm...
+                        where npm >nul 2>nul
+                        if %errorlevel% equ 0 (
+                            npm install -g sonarqube-scanner 2>nul
+                            if exist "%APPDATA%\\npm\\sonar-scanner.cmd" (
+                                echo ✅ SonarQube Scanner instalado via npm
+                                "%APPDATA%\\npm\\sonar-scanner.cmd" -Dsonar.token=%SONAR_TOKEN%
+                            )
+                        ) else (
+                            echo ❌ No se pudo instalar SonarQube Scanner
+                            echo Descargar desde: https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/
+                            
+                            REM Generar reporte de advertencia
+                            echo ^<html^> > sonarqube-report.html
+                            echo ^<head^>^<title^>SonarQube Report^</title^>^</head^> >> sonarqube-report.html
+                            echo ^<body^> >> sonarqube-report.html
+                            echo ^<h1 style="color: orange;"^>⚠️ SonarQube Scanner no disponible^</h1^> >> sonarqube-report.html
+                            echo ^<p^>El análisis de SonarQube no se pudo ejecutar.^</p^> >> sonarqube-report.html
+                            echo ^</body^> >> sonarqube-report.html
+                            echo ^</html^> >> sonarqube-report.html
+                        )
                     )
                 '''
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'sonarqube-report.html, sonar-project.properties', fingerprint: true
+                    archiveArtifacts artifacts: 'sonar-project.properties, sonarqube-report.html', fingerprint: true
                 }
             }
         }

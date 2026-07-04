@@ -248,12 +248,9 @@ pipeline {
                         echo Iniciando Flask...
                         start /B python -m flask run --host=0.0.0.0 --port=5000
                         
-                        echo Esperando 10 segundos para que la aplicacion inicie...
-                        ping -n 10 127.0.0.1 >nul
+                        echo Esperando 8 segundos para que la aplicacion inicie...
+                        ping -n 8 127.0.0.1 >nul
                         
-                        echo Verificando que la aplicacion responda...
-                        curl -s -o nul -w "HTTP Status: %%{http_code}" http://localhost:5000
-                        echo.
                         echo ✅ Aplicacion vulnerable desplegada en %TARGET_URL%
                     ) else (
                         echo ❌ vulnerable_app.py no encontrado
@@ -262,7 +259,6 @@ pipeline {
                 '''
             }
         }
-        
        stage('OWASP ZAP Scan') {
             steps {
                 echo '=== ESCANEO OWASP ZAP CON DOCKER ==='

@@ -247,12 +247,14 @@ pipeline {
                     if exist vulnerable_app.py (
                         echo Iniciando Flask...
                         start /B python -m flask run --host=0.0.0.0 --port=5000
-                        timeout /t 5 /nobreak
                         
-                        echo Verificando que la aplicación responda...
-                        curl -s -o nul -w "HTTP Status: %%{http_code}" %TARGET_URL% || echo ⚠️ No se pudo conectar
+                        echo Esperando a que la aplicacion inicie...
+                        timeout /t 8 /nobreak
+                        
+                        echo Verificando que la aplicacion responda...
+                        curl -s -o nul -w "HTTP Status: %%{http_code}" http://localhost:5000
                         echo.
-                        echo ✅ Aplicación vulnerable desplegada en %TARGET_URL%
+                        echo ✅ Aplicacion vulnerable desplegada en %TARGET_URL%
                     ) else (
                         echo ❌ vulnerable_app.py no encontrado
                         exit 1
